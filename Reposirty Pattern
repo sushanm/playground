@@ -1,0 +1,125 @@
+
+public interface IRepository<T> where T : class, IEntity
+{
+    Task<IEnumerable<T>> GetAllAsync();
+    Task<T> GetByIdAsync(int id);
+    Task AddAsync(T entity);
+    void Update(T entity);
+    void Delete(T entity);
+    Task SaveChangesAsync();
+}
+
+
+
+public class Repository<T> : IRepository<T> where T : class, IEntity
+{
+    protected readonly DbContext _context;
+    protected readonly DbSet<T> _dbSet;
+
+    public Repository(DbContext context)
+    {
+        _context = context;
+        _dbSet = _context.Set<T>();
+    }
+
+    public async Task<IEnumerable<T>> GetAllAsync()
+    {
+        return await _dbSet.ToListAsync();
+    }
+
+    public async Task<T> GetByIdAsync(int id)
+    {
+        return await _dbSet.FindAsync(id);
+    }
+
+    public async Task AddAsync(T entity)
+    {
+        await _dbSet.AddAsync(entity);
+    }
+
+    public void Update(T entity)
+    {
+        _dbSet.Update(entity);
+    }
+
+    public void Delete(T entity)
+    {
+        _dbSet.Remove(entity);
+    }
+
+    public async Task SaveChangesAsync()
+    {
+        await _context.SaveChangesAsync();
+    }
+}
+
+
+
+
+
+public class Product : IEntity
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+}
+
+
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    public DbSet<Product> Products { get; set; }
+}
+
+
+public interface IProductRepository : IRepository<Product>
+{
+    Task<IEnumerable<Product>> GetProductsWithHighPrice(decimal minPrice);
+}
+
+
+
+public class ProductRepository : Repository<Product>, IProductRepository
+{
+    public ProductRepository(AppDbContext context) : base(context)
+    {
+    }
+
+    public async Task<IEnumerable<Product>> GetProductsWithHighPrice(decimal minPrice)
+    {
+        return await _dbSet.Where(p => p.Price >= minPrice).ToListAsync();
+    }
+}
+
+
+
+
+
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>)); // Keep for other entities
+
+
+
+
+[ApiController]
+[Route("api/[controller]")]
+public class ProductsController : ControllerBase
+{
+    private readonly IProductRepository _productRepository;
+
+    public ProductsController(IProductRepository productRepository)
+    {
+        _productRepository = productRepository;
+    }
+
+    [HttpGet("expensive")]
+    public async Task<IActionResult> GetExpensiveProducts([FromQuery] decimal minPrice)
+    {
+        var products = await _productRepository.GetProductsWithHighPrice(minPrice);
+        return Ok(products);
+    }
+}
+
+
+
