@@ -1,0 +1,117 @@
+✅ 1. Define a Base Interface for Entities (Optional)
+csharp
+Copy
+Edit
+public interface IEntity
+{
+    int Id { get; set; }
+}
+✅ 2. Generic Repository Interface
+csharp
+Copy
+Edit
+public interface IGenericRepository<T> where T : class, IEntity
+{
+    Task<IEnumerable<T>> GetAllAsync();
+    Task<T> GetByIdAsync(int id);
+    Task AddAsync(T entity);
+    void Update(T entity);
+    void Delete(T entity);
+    Task SaveChangesAsync();
+}
+✅ 3. Generic Repository Implementation
+csharp
+Copy
+Edit
+public class GenericRepository<T> : IGenericRepository<T> where T : class, IEntity
+{
+    private readonly DbContext _context;
+    private readonly DbSet<T> _dbSet;
+
+    public GenericRepository(DbContext context)
+    {
+        _context = context;
+        _dbSet = context.Set<T>();
+    }
+
+    public async Task<IEnumerable<T>> GetAllAsync()
+    {
+        return await _dbSet.ToListAsync();
+    }
+
+    public async Task<T> GetByIdAsync(int id)
+    {
+        return await _dbSet.FindAsync(id);
+    }
+
+    public async Task AddAsync(T entity)
+    {
+        await _dbSet.AddAsync(entity);
+    }
+
+    public void Update(T entity)
+    {
+        _dbSet.Update(entity);
+    }
+
+    public void Delete(T entity)
+    {
+        _dbSet.Remove(entity);
+    }
+
+    public async Task SaveChangesAsync()
+    {
+        await _context.SaveChangesAsync();
+    }
+}
+✅ 4. Example Entity
+csharp
+Copy
+Edit
+public class Product : IEntity
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+}
+✅ 5. Your DbContext
+csharp
+Copy
+Edit
+public class AppDbContext : DbContext
+{
+    public DbSet<Product> Products { get; set; }
+
+    public AppDbContext(DbContextOptions<AppDbContext> options)
+        : base(options)
+    {
+    }
+}
+✅ 6. Register in DI (Startup.cs / Program.cs)
+csharp
+Copy
+Edit
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+✅ 7. Example Usage in Controller or Service
+csharp
+Copy
+Edit
+public class ProductService
+{
+    private readonly IGenericRepository<Product> _repository;
+
+    public ProductService(IGenericRepository<Product> repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<IEnumerable<Product>> GetAllProducts()
+    {
+        return await _repository.GetAllAsync();
+    }
+
+    public async Task AddProduct(Product product)
+    {
+        await _repository.AddAsync(product);
+        await _repository.SaveChangesAsync();
+    }
+}
